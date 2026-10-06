@@ -1,0 +1,5 @@
+participant_id,diagnosis,age_at_diagnosis_years,sex,vital_status,overall_survival_days
+NBL-P001,Neuroblastoma,4,F,Alive,1460
+NBL-P002,Neuroblastoma,7,M,Alive,980
+NBL-P003,Neuroblastoma,12,F,Alive,730
+NBL-P004,Neuroblastoma,16,M,Deceased,410

@@ -1,0 +1,5 @@
+participant_id	specimen_id	specimen_type	tumor_status	assay_type	collection_day
+NBL-P001	NBL-S001	Primary tumor	Tumor	RNA-seq; targeted DNA	0
+NBL-P002	NBL-S002	Primary tumor	Tumor	RNA-seq; targeted DNA	0
+NBL-P003	NBL-S003	Primary tumor	Tumor	RNA-seq; targeted DNA	0
+NBL-P004	NBL-S004	Primary tumor	Tumor	RNA-seq; targeted DNA	0

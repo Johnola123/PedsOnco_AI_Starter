@@ -15,7 +15,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: alpine/minio:latest-release
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -24,12 +24,8 @@ services:
     volumes:
       - minio_data:/data
     ports:
+      - "9000:9000"
       - "9001:9001"
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
   backend:
     build:

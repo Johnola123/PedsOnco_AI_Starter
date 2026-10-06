@@ -1,0 +1,64 @@
+{
+  "study": {
+    "study_id": "DEMO-NBL",
+    "title": "Synthetic Neuroblastoma cohort"
+  },
+  "participants": [
+    {
+      "id": "NBL-P001",
+      "demographics": {
+        "sex": "F",
+        "age_dx_years": 4
+      },
+      "diagnosis": {
+        "label": "Neuroblastoma"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 1460
+      }
+    },
+    {
+      "id": "NBL-P002",
+      "demographics": {
+        "sex": "M",
+        "age_dx_years": 7
+      },
+      "diagnosis": {
+        "label": "Neuroblastoma"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 980
+      }
+    },
+    {
+      "id": "NBL-P003",
+      "demographics": {
+        "sex": "F",
+        "age_dx_years": 12
+      },
+      "diagnosis": {
+        "label": "Neuroblastoma"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 730
+      }
+    },
+    {
+      "id": "NBL-P004",
+      "demographics": {
+        "sex": "M",
+        "age_dx_years": 16
+      },
+      "diagnosis": {
+        "label": "Neuroblastoma"
+      },
+      "outcome": {
+        "vital_status": "Deceased",
+        "os_days": 410
+      }
+    }
+  ]
+}

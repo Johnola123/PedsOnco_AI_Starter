@@ -1,225 +1,285 @@
-# PedsOnco AI Starter
+# PedsOnco AI Starter — Direct S3/MinIO Upload Edition
 
-A runnable foundation for the proposed PedsOnco AI web platform.
+A deployable starter for a multimodal pediatric-oncology research web application.
 
 ## Architecture
 
-- **Nginx**: web server and reverse proxy
-- **React + TypeScript + Vite**: interactive frontend
-- **Python + FastAPI**: API and scientific backend
-- **PostgreSQL**: application and metadata database
-- **MinIO**: local S3-compatible object storage
-- **Docker Compose**: local multi-container deployment
+```text
+Browser / API client
+        |
+        | 1. POST /api/uploads/presign
+        v
+      FastAPI  ------------------------> PostgreSQL
+        |                                  metadata registry
+        | returns short-lived signed URL
+        v
+Browser / API client -- direct PUT --> MinIO / S3
+        |
+        | 2. POST /api/uploads/complete
+        v
+      FastAPI -- HEAD + SHA-256 --> register dataset
+```
 
-This starter implements a small end-to-end vertical slice:
+External URL/API import uses a safe server-side path:
 
-1. React loads through Nginx.
-2. React checks `/api/health`.
-3. A user uploads a file.
-4. FastAPI computes SHA-256 and stores the original bytes in MinIO.
-5. FastAPI stores file metadata/provenance in PostgreSQL.
-6. The frontend lists registered datasets.
+```text
+External HTTPS URL / GET API
+        |
+        v
+      FastAPI  -- streaming --> MinIO / S3
+        |
+        +---------------------> PostgreSQL
+```
 
-It intentionally does **not** yet implement the full clinical harmonization/AI pipeline.
+The React app never sends large local files through Nginx/FastAPI. FastAPI signs the upload; the browser sends the file directly to object storage. This is the intended path for FASTQ, BAM/CRAM, DICOM, images, Parquet, and other large objects.
+
+## Stack
+
+- **Nginx** — serves the production React build and proxies `/api` to FastAPI
+- **React + TypeScript + Vite** — responsive web UI
+- **Python 3.12 + FastAPI** — API, presigning, URL/API import, registration
+- **PostgreSQL 17** — dataset/cohort metadata
+- **MinIO / S3** — original files and large objects
+- **Docker Compose** — local/development deployment
+
+## Included capabilities
+
+- Multi-file browser uploads using presigned S3/MinIO PUT URLs
+- Upload progress in the React UI
+- External public URL import
+- GET API import with optional Bearer token
+- Bearer tokens are transient and are not written to the database
+- SSRF protections block loopback/private/link-local destinations
+- SHA-256 registration and duplicate detection
+- Short-lived presigned download URLs
+- Cohort/project grouping
+- Responsive registry and upload UI
+- CSV, TSV, Excel, JSON/NDJSON, FASTA/FASTQ, VCF/MAF, BAM/CRAM, images/DICOM, Parquet and generic files
+- Synthetic multimodal cohort examples under `sample_data/`
 
 ## 1. Prerequisites
 
-Install:
-
-- Git
-- Docker Desktop (includes Docker Compose on Mac/Windows; also available on Linux)
-- Optional for non-Docker development: Python 3.12+ and Node.js 22+
-
-Verify:
+On macOS Apple Silicon, install Docker Desktop for Apple Silicon. Verify:
 
 ```bash
 git --version
 docker --version
 docker compose version
-node --version
-python --version
 ```
 
-## 2. Clone your Git repository
+Node/Python are optional for the Docker-only path. For local development outside Docker, Node 22+ and Python 3.12 are recommended.
 
-After creating an empty repository on GitHub/GitLab:
+## 2. Configure
 
-```bash
-git clone <YOUR_REPOSITORY_URL>
-cd <YOUR_REPOSITORY_FOLDER>
-```
-
-Copy this starter's contents into that folder. Do **not** copy its parent folder as a nested repo unless that is what you want.
-
-Then:
-
-```bash
-git add .
-git status
-git commit -m "Initialize PedsOnco AI web platform"
-git branch -M main
-git push -u origin main
-```
-
-Commit source and configuration templates. Do not commit `.env`, secrets, `node_modules`, `.venv`, raw patient data, FASTQ/BAM/CRAM/DICOM files, or generated object-storage/database volumes.
-
-## 3. Configure environment
+From the repository root:
 
 ```bash
 cp .env.example .env
 ```
 
-Change the PostgreSQL and MinIO passwords in `.env` before any shared or remote deployment.
+For local testing on the **same Mac**, keep:
 
-## 4. Start everything with Docker
+```env
+S3_ENDPOINT_URL=http://minio:9000
+S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
+WEB_ORIGINS=http://localhost:8080,http://localhost:5173
+```
+
+Change the example passwords in `.env` before any shared deployment.
+
+### Testing from a phone/tablet on your LAN
+
+`localhost` on the phone means the phone itself. Use the Mac's reachable LAN address instead, for example:
+
+```env
+S3_PUBLIC_ENDPOINT_URL=http://192.168.1.50:9000
+WEB_ORIGINS=http://192.168.1.50:8080,http://localhost:8080,http://localhost:5173
+```
+
+Open `http://192.168.1.50:8080` on the mobile device. Your firewall must allow the ports. For any real deployment, use HTTPS hostnames instead of LAN IPs.
+
+## 3. Start the full stack
 
 ```bash
 docker compose config
 docker compose up --build -d
+docker compose ps
 ```
 
 Open:
 
-- Web app: http://localhost:8080
-- FastAPI Swagger docs: http://localhost:8080/docs
-- MinIO Console: http://localhost:9001
+- Web app: `http://localhost:8080`
+- FastAPI Swagger docs: `http://localhost:8080/docs`
+- MinIO console: `http://localhost:9001`
+- MinIO S3 API: `http://localhost:9000`
 
-View service state:
-
-```bash
-docker compose ps
-```
-
-Follow logs:
-
-```bash
-docker compose logs -f
-```
-
-Backend only:
+View logs:
 
 ```bash
 docker compose logs -f backend
+docker compose logs -f web
 ```
 
-## 5. First test
-
-Create a small CSV file, e.g. `demo.csv`:
-
-```csv
-participant_id,diagnosis,age_at_diagnosis
-P001,Neuroblastoma,7
-P002,Sarcoma,14
-```
-
-Open the web app, upload `demo.csv`, and confirm it appears in the data registry.
-
-The file itself is stored in MinIO and its metadata is stored in PostgreSQL.
-
-## 6. Useful Docker commands
-
-Stop services without deleting data:
-
-```bash
-docker compose stop
-```
-
-Start again:
-
-```bash
-docker compose start
-```
-
-Rebuild after code/config changes:
-
-```bash
-docker compose up --build -d
-```
-
-Stop and remove containers/network but keep named volumes:
+Stop:
 
 ```bash
 docker compose down
 ```
 
-Delete everything including local database/object-storage volumes (**destructive**):
+Delete development database/object-store volumes too:
 
 ```bash
 docker compose down -v
 ```
 
-## 7. Local frontend development (optional)
+> If upgrading from the older starter before this direct-upload edition and you only have disposable demo data, `docker compose down -v` is the simplest way to start with the current schema.
 
-Run PostgreSQL/MinIO/backend in Docker:
+## 4. Test direct browser upload
 
-```bash
-docker compose up -d postgres minio backend
-```
+Use the **Computer / device** tab in the web app:
 
-Then:
+1. Enter a cohort/project name.
+2. Select one or more files.
+3. FastAPI returns one presigned PUT URL per file.
+4. The browser uploads each file directly to MinIO/S3.
+5. The browser asks FastAPI to complete registration.
+6. FastAPI verifies the object, calculates SHA-256 in a streaming fashion, and writes metadata to PostgreSQL.
 
-```bash
-cd frontend
-npm install
-VITE_API_BASE_URL=http://localhost:8000/api npm run dev
-```
+This means large file bytes do **not** pass through Nginx or FastAPI during the initial upload.
 
-Open http://localhost:5173.
+## 5. Test external URL / API import
 
-## 8. Local backend development (optional)
+Use the **External URL / API** tab.
 
-If running FastAPI outside Docker, make a Python environment and point `DATABASE_URL` and `S3_ENDPOINT_URL` at localhost equivalents.
+Supported MVP pattern:
 
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate   # Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-fastapi dev app/main.py
-```
+- HTTP(S) public download URL, or
+- HTTP(S) GET API endpoint
+- optional Bearer token
+- optional filename override
 
-You will normally keep PostgreSQL and MinIO running in Docker.
+The server streams the response to a temporary spool, calculates SHA-256, then uploads it to object storage. The URL importer blocks private/local addresses to reduce SSRF risk. Authenticated requests cannot redirect to another hostname. Query strings are not stored in provenance metadata.
 
-## 9. Git workflow
+This is appropriate for remote JSON/CSV responses and downloadable files. Future repository-specific adapters can add OAuth, pagination, manifests, signed URLs, and asynchronous imports.
 
-Use short feature branches rather than editing `main` directly:
+## 6. API-client direct upload example
+
+Request a presigned URL:
 
 ```bash
-git checkout -b feature/harmonization-ui
-# edit files
-git add .
-git commit -m "Add harmonization review interface"
-git push -u origin feature/harmonization-ui
+curl -s -X POST http://localhost:8000/api/uploads/presign \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "project_name":"Neuroblastoma Demo",
+    "filename":"clinical.csv",
+    "content_type":"text/csv"
+  }'
 ```
 
-Suggested branches/milestones:
+The response contains `upload_url` and `object_key`. PUT the file directly to `upload_url` using the **same Content-Type** used while signing:
 
-- `feature/data-profiling`
-- `feature/json-adapter`
-- `feature/ccdi-schema`
-- `feature/harmonization-engine`
-- `feature/qc-dashboard`
-- `feature/cohort-builder`
-- `feature/modeling`
-- `feature/export-center`
+```bash
+curl -X PUT '<UPLOAD_URL_FROM_RESPONSE>' \
+  -H 'Content-Type: text/csv' \
+  --upload-file ./sample_data/cohort_neuroblastoma/clinical.csv
+```
 
-## 10. What comes next
+Then complete registration:
 
-Recommended implementation order:
+```bash
+curl -X POST http://localhost:8000/api/uploads/complete \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "project_name":"Neuroblastoma Demo",
+    "filename":"clinical.csv",
+    "content_type":"text/csv",
+    "object_key":"<OBJECT_KEY_FROM_PRESIGN_RESPONSE>"
+  }'
+```
 
-1. Dataset registry and upload (this starter)
-2. CSV/Excel/JSON profiler
-3. Canonical CCDI/C3DC metadata model
-4. AI-assisted field mapping + reviewer UI
-5. QC dashboard
-6. Participant → specimen → assay → file explorer
-7. Cohort builder
-8. Modeling + survival analysis + explainability
-9. VCF/MAF adapter
-10. Large-file direct-to-S3/MinIO uploads and background processing
-11. Reproducibility/export center
-12. Authentication, authorization, audit trail, HTTPS and deployment hardening
+## 7. Import a public URL from the API
 
-## Security note
+```bash
+curl -X POST http://localhost:8000/api/import/url \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "project_name":"External Demo",
+    "url":"https://example.org/cohort.json"
+  }'
+```
 
-This is a development starter, not a production clinical-data environment. Do not upload PHI or controlled-access human-subject data to a public or unmanaged deployment. Add authentication/authorization, encryption, audit logging, secrets management, TLS, access controls, backups and institutional compliance review before handling restricted data.
+Bearer-protected GET API:
+
+```bash
+curl -X POST http://localhost:8000/api/import/url \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "project_name":"External Demo",
+    "url":"https://api.example.org/v1/export",
+    "filename":"api_export.json",
+    "bearer_token":"REPLACE_WITH_TOKEN"
+  }'
+```
+
+Do not commit tokens to Git or shell scripts.
+
+## 8. Production S3 instead of MinIO
+
+The code uses the S3 API. To use AWS S3 or another compatible provider, change the S3 environment settings and provide credentials through a secret manager/environment injection rather than committing them.
+
+For browser-direct uploads, `S3_PUBLIC_ENDPOINT_URL` must resolve from the user's browser. Set bucket CORS to permit your actual application HTTPS origin and `PUT`, `GET`, and `HEAD` methods.
+
+## 9. Security / research-data notes
+
+This starter is **not yet an authorization boundary for controlled human-subject data**. Before handling controlled-access datasets, add at minimum:
+
+- institutional authentication/SSO
+- role-based project authorization
+- audit logs
+- encryption and managed secrets
+- malware/file scanning where applicable
+- data retention/deletion policy
+- access logging
+- controlled egress
+- HTTPS everywhere
+- repository-specific consent/access enforcement
+
+Do not put real patient data, `.env`, credentials, FASTQ/BAM/CRAM, or object-store volumes in Git.
+
+## 10. Suggested next milestones
+
+1. **File profiling adapters** — CSV/TSV/JSON/FASTA/FASTQ/VCF/MAF/image metadata.
+2. **Canonical model** — Study → Participant → Diagnosis → Specimen → Assay → File.
+3. **AI harmonization** — suggested field mapping + confidence + Accept/Edit/Reject.
+4. **QC dashboard** — missingness, duplicates, orphan samples/files, invalid controlled terms.
+5. **Cohort builder** — reusable filters and cohort definitions.
+6. **Background jobs** — Redis/Celery for FASTQ QC, VCF annotation, imaging metadata, model training.
+7. **Auth + audit** — required before controlled-access data.
+8. **Cloud deployment** — HTTPS Nginx + managed PostgreSQL + S3/object storage.
+
+## Repository layout
+
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   └── storage.py
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   ├── nginx/default.conf
+│   └── Dockerfile
+├── sample_data/
+├── docs/
+├── compose.yaml
+├── .env.example
+└── README.md
+```
+
+Research-use starter only; not clinical decision support.

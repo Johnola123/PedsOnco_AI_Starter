@@ -1,0 +1,5 @@
+participant_id	specimen_id	specimen_type	tumor_status	assay_type	collection_day
+TALL-P001	TALL-S001	Bone marrow	Tumor	RNA-seq; targeted DNA	0
+TALL-P002	TALL-S002	Bone marrow	Tumor	RNA-seq; targeted DNA	0
+TALL-P003	TALL-S003	Bone marrow	Tumor	RNA-seq; targeted DNA	0
+TALL-P004	TALL-S004	Bone marrow	Tumor	RNA-seq; targeted DNA	0
