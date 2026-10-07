@@ -25,3 +25,6 @@ Thumbs.db
 local-data/
 exports/
 *.log
+
+# Local MinIO object storage
+storage/minio/
