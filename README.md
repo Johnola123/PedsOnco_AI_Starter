@@ -1,106 +1,64 @@
-# PedsOnco AI Starter — Direct S3/MinIO Upload Edition
+# PedsOnco AI — Milestone 1 CCDI Interoperability Studio
 
-A deployable starter for a multimodal pediatric-oncology research web application.
+A Git-ready, deployable feasibility application for the **Childhood, Adolescent and Young Adult Cancer Data Innovation Challenge — Phase I / Milestone 1**.
+
+This repository intentionally focuses on the **Milestone 1 core**: demonstrate a credible, reusable approach for multimodal pediatric/AYA cancer data intake, CCDI-aligned harmonization, cohort exploration, provenance, integration, and export. The more experimental multi-institution federated-learning implementation is maintained separately in the `PedsOnco_Federation_Expansion` repository so the Milestone 1 demo stays simple, reviewable, and reproducible.
+
+## Cohort workspace workflow (v1.3)
+
+Every cohort is now a complete, non-destructive workspace:
+
+**Files → Inspect → Harmonize → Edit → Integrate → Explore → Export**
+
+- **Files** shows every asset added to the cohort, including later-added clinical, survival, molecular, sequence, imaging, and workbook files.
+- **Inspect** profiles a selected file; Excel workbooks retain all worksheets as linked tables.
+- **Harmonize** implements human-in-the-loop mapping: proposals → visual review → field drag/edit → backend validation → confirmation → provenance.
+- **Edit** stores transformation recipes without overwriting raw source objects.
+- **Integrate** records relationships between files/tables inside the same cohort, such as participant-to-survival or sample-to-expression keys.
+- **Explore** summarizes file types, profiled tables, and table roles.
+- **Export** produces a reproducible workspace manifest containing source provenance plus harmonization/edit/integration decisions.
+
+**Cross-cohort merge is separate.** It creates a logical view across already prepared cohorts and does not replace within-cohort integration.
+
+## Milestone 1 demonstration scope
+
+- Cohort-centered multimodal intake
+- Multi-sheet Excel/CCDI manifest inspection (all worksheets, not first-sheet only)
+- CSV/TSV/JSON intake
+- Registration of FASTA/FASTQ, VCF/MAF, BAM/CRAM, imaging/DICOM and other files
+- Direct MinIO/S3 presigned uploads for large objects
+- External URL/API ingestion
+- Cohort-aware file provenance and checksums
+- Dataset/workbook profiling
+- Logical cohort merging without destroying source provenance
+- Responsive React/TypeScript web interface
+- Open-source Docker deployment
 
 ## Architecture
 
 ```text
-Browser / API client
-        |
-        | 1. POST /api/uploads/presign
-        v
-      FastAPI  ------------------------> PostgreSQL
-        |                                  metadata registry
-        | returns short-lived signed URL
-        v
-Browser / API client -- direct PUT --> MinIO / S3
-        |
-        | 2. POST /api/uploads/complete
-        v
-      FastAPI -- HEAD + SHA-256 --> register dataset
+Browser
+   |
+   v
+Nginx -> React/TypeScript
+   |
+   v
+FastAPI
+   |---------------------- PostgreSQL (cohort/file metadata)
+   |
+   +---------------------- MinIO/S3 (large objects)
 ```
 
-External URL/API import uses a safe server-side path:
+## Why federation is a separate repository
 
-```text
-External HTTPS URL / GET API
-        |
-        v
-      FastAPI  -- streaming --> MinIO / S3
-        |
-        +---------------------> PostgreSQL
-```
+Federation is a valid Challenge direction, but a full multi-site federation adds site registration, governance, network trust, health monitoring, local training, aggregation, and privacy controls. Those features are maintained in a separate research repository so this Milestone 1 application can remain focused on a clean proof of feasibility. See `docs/MILESTONE2_3_ROADMAP.md`.
 
-The React app never sends large local files through Nginx/FastAPI. FastAPI signs the upload; the browser sends the file directly to object storage. This is the intended path for FASTQ, BAM/CRAM, DICOM, images, Parquet, and other large objects.
-
-## Stack
-
-- **Nginx** — serves the production React build and proxies `/api` to FastAPI
-- **React + TypeScript + Vite** — responsive web UI
-- **Python 3.12 + FastAPI** — API, presigning, URL/API import, registration
-- **PostgreSQL 17** — dataset/cohort metadata
-- **MinIO / S3** — original files and large objects
-- **Docker Compose** — local/development deployment
-
-## Included capabilities
-
-- Multi-file browser uploads using presigned S3/MinIO PUT URLs
-- Upload progress in the React UI
-- External public URL import
-- GET API import with optional Bearer token
-- Bearer tokens are transient and are not written to the database
-- SSRF protections block loopback/private/link-local destinations
-- SHA-256 registration and duplicate detection
-- Short-lived presigned download URLs
-- Cohort/project grouping
-- Responsive registry and upload UI
-- CSV, TSV, Excel, JSON/NDJSON, FASTA/FASTQ, VCF/MAF, BAM/CRAM, images/DICOM, Parquet and generic files
-- Synthetic multimodal cohort examples under `sample_data/`
-
-## 1. Prerequisites
-
-On macOS Apple Silicon, install Docker Desktop for Apple Silicon. Verify:
-
-```bash
-git --version
-docker --version
-docker compose version
-```
-
-Node/Python are optional for the Docker-only path. For local development outside Docker, Node 22+ and Python 3.12 are recommended.
-
-## 2. Configure
-
-From the repository root:
+## Quick start
 
 ```bash
 cp .env.example .env
-```
-
-For local testing on the **same Mac**, keep:
-
-```env
-S3_ENDPOINT_URL=http://minio:9000
-S3_PUBLIC_ENDPOINT_URL=http://localhost:9000
-WEB_ORIGINS=http://localhost:8080,http://localhost:5173
-```
-
-Change the example passwords in `.env` before any shared deployment.
-
-### Testing from a phone/tablet on your LAN
-
-`localhost` on the phone means the phone itself. Use the Mac's reachable LAN address instead, for example:
-
-```env
-S3_PUBLIC_ENDPOINT_URL=http://192.168.1.50:9000
-WEB_ORIGINS=http://192.168.1.50:8080,http://localhost:8080,http://localhost:5173
-```
-
-Open `http://192.168.1.50:8080` on the mobile device. Your firewall must allow the ports. For any real deployment, use HTTPS hostnames instead of LAN IPs.
-
-## 3. Start the full stack
-
-```bash
+mkdir -p storage/minio
+chmod -R 777 storage/minio
 docker compose config
 docker compose up --build -d
 docker compose ps
@@ -108,178 +66,51 @@ docker compose ps
 
 Open:
 
-- Web app: `http://localhost:8080`
-- FastAPI Swagger docs: `http://localhost:8080/docs`
-- MinIO console: `http://localhost:9001`
-- MinIO S3 API: `http://localhost:9000`
+- App: http://localhost:8080
+- API docs: http://localhost:8000/docs
+- MinIO console: http://localhost:9001
 
-View logs:
+## Suggested Milestone 1 demo
 
-```bash
-docker compose logs -f backend
-docker compose logs -f web
-```
+1. Add a synthetic cohort or a CCDI-style workbook.
+2. Inspect every workbook worksheet and its role.
+3. Add a second modality (JSON, VCF, FASTA, image, etc.) to the same cohort.
+4. Harmonize a participant/clinical table: review proposals, drag fields onto canonical targets, accept/reject, validate, and confirm.
+5. Integrate two within-cohort files using validated join keys.
+6. Review provenance and export the workspace manifest.
+7. Optionally create a separate cross-cohort logical merge view.
 
-Stop:
+## Repository documents
 
-```bash
-docker compose down
-```
+- `docs/MILESTONE1_SCOPE.md`
+- `docs/MILESTONE1_SUBMISSION_DRAFT.md`
+- `docs/MILESTONE2_3_ROADMAP.md`
+- `docs/CHALLENGE_ALIGNMENT.md`
+- `docs/DEMO_SCRIPT.md`
+- `docs/CCDI_SUBMISSION_READINESS.md`
 
-Delete development database/object-store volumes too:
+## Important
 
-```bash
-docker compose down -v
-```
+This is a research software prototype. It is not clinical decision support and should not be used with identifiable patient data in an unsecured local development environment.
 
-> If upgrading from the older starter before this direct-upload edition and you only have disposable demo data, `docker compose down -v` is the simplest way to start with the current schema.
 
-## 4. Test direct browser upload
+## v1.2 interaction update
 
-Use the **Computer / device** tab in the web app:
+- Drag-and-drop intake on Add Data.
+- Drag-and-drop additional files directly inside a cohort workspace.
+- Drop-to-inspect for rapid file profiling.
+- Drag cohort file cards into left/right integration slots (selectors remain available for accessibility/mobile).
+- In-app confirmation dialogs for removal of saved decisions, potentially consequential edit recipes, integrated views, and cross-cohort merges.
+- Raw uploaded sources remain immutable; confirmations apply to working-layer/provenance operations.
 
-1. Enter a cohort/project name.
-2. Select one or more files.
-3. FastAPI returns one presigned PUT URL per file.
-4. The browser uploads each file directly to MinIO/S3.
-5. The browser asks FastAPI to complete registration.
-6. FastAPI verifies the object, calculates SHA-256 in a streaming fashion, and writes metadata to PostgreSQL.
+## v1.3 human-in-the-loop harmonization
 
-This means large file bytes do **not** pass through Nginx or FastAPI during the initial upload.
+The cohort Harmonize workspace now implements the complete review path:
 
-## 5. Test external URL / API import
+**AI proposes → user visually reviews → user drags/edits → system validates → user confirms → provenance is recorded.**
 
-Use the **External URL / API** tab.
+Source columns can be dragged onto CCDI-oriented canonical targets, edited manually, accepted/reviewed/rejected, validated by the FastAPI backend, and only then confirmed into an immutable workspace provenance record. Field-level drag/drop is also available for edit recipes and integration join keys, with keyboard/mobile selectors retained as alternatives. See `docs/HUMAN_IN_THE_LOOP_HARMONIZATION_V1_3.md`.
 
-Supported MVP pattern:
+## v1.4 edit workspace
 
-- HTTP(S) public download URL, or
-- HTTP(S) GET API endpoint
-- optional Bearer token
-- optional filename override
-
-The server streams the response to a temporary spool, calculates SHA-256, then uploads it to object storage. The URL importer blocks private/local addresses to reduce SSRF risk. Authenticated requests cannot redirect to another hostname. Query strings are not stored in provenance metadata.
-
-This is appropriate for remote JSON/CSV responses and downloadable files. Future repository-specific adapters can add OAuth, pagination, manifests, signed URLs, and asynchronous imports.
-
-## 6. API-client direct upload example
-
-Request a presigned URL:
-
-```bash
-curl -s -X POST http://localhost:8000/api/uploads/presign \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "project_name":"Neuroblastoma Demo",
-    "filename":"clinical.csv",
-    "content_type":"text/csv"
-  }'
-```
-
-The response contains `upload_url` and `object_key`. PUT the file directly to `upload_url` using the **same Content-Type** used while signing:
-
-```bash
-curl -X PUT '<UPLOAD_URL_FROM_RESPONSE>' \
-  -H 'Content-Type: text/csv' \
-  --upload-file ./sample_data/cohort_neuroblastoma/clinical.csv
-```
-
-Then complete registration:
-
-```bash
-curl -X POST http://localhost:8000/api/uploads/complete \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "project_name":"Neuroblastoma Demo",
-    "filename":"clinical.csv",
-    "content_type":"text/csv",
-    "object_key":"<OBJECT_KEY_FROM_PRESIGN_RESPONSE>"
-  }'
-```
-
-## 7. Import a public URL from the API
-
-```bash
-curl -X POST http://localhost:8000/api/import/url \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "project_name":"External Demo",
-    "url":"https://example.org/cohort.json"
-  }'
-```
-
-Bearer-protected GET API:
-
-```bash
-curl -X POST http://localhost:8000/api/import/url \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "project_name":"External Demo",
-    "url":"https://api.example.org/v1/export",
-    "filename":"api_export.json",
-    "bearer_token":"REPLACE_WITH_TOKEN"
-  }'
-```
-
-Do not commit tokens to Git or shell scripts.
-
-## 8. Production S3 instead of MinIO
-
-The code uses the S3 API. To use AWS S3 or another compatible provider, change the S3 environment settings and provide credentials through a secret manager/environment injection rather than committing them.
-
-For browser-direct uploads, `S3_PUBLIC_ENDPOINT_URL` must resolve from the user's browser. Set bucket CORS to permit your actual application HTTPS origin and `PUT`, `GET`, and `HEAD` methods.
-
-## 9. Security / research-data notes
-
-This starter is **not yet an authorization boundary for controlled human-subject data**. Before handling controlled-access datasets, add at minimum:
-
-- institutional authentication/SSO
-- role-based project authorization
-- audit logs
-- encryption and managed secrets
-- malware/file scanning where applicable
-- data retention/deletion policy
-- access logging
-- controlled egress
-- HTTPS everywhere
-- repository-specific consent/access enforcement
-
-Do not put real patient data, `.env`, credentials, FASTQ/BAM/CRAM, or object-store volumes in Git.
-
-## 10. Suggested next milestones
-
-1. **File profiling adapters** — CSV/TSV/JSON/FASTA/FASTQ/VCF/MAF/image metadata.
-2. **Canonical model** — Study → Participant → Diagnosis → Specimen → Assay → File.
-3. **AI harmonization** — suggested field mapping + confidence + Accept/Edit/Reject.
-4. **QC dashboard** — missingness, duplicates, orphan samples/files, invalid controlled terms.
-5. **Cohort builder** — reusable filters and cohort definitions.
-6. **Background jobs** — Redis/Celery for FASTQ QC, VCF annotation, imaging metadata, model training.
-7. **Auth + audit** — required before controlled-access data.
-8. **Cloud deployment** — HTTPS Nginx + managed PostgreSQL + S3/object storage.
-
-## Repository layout
-
-```text
-.
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── db.py
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   └── storage.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   ├── nginx/default.conf
-│   └── Dockerfile
-├── sample_data/
-├── docs/
-├── compose.yaml
-├── .env.example
-└── README.md
-```
-
-Research-use starter only; not clinical decision support.
+The Edit tab now uses an explicit table + searchable field browser instead of field drag-and-drop. This keeps editing safer and easier to understand: choose file → choose sheet/table → choose field → choose operation → review/confirm. Wide Excel/CSV/TSV sources now discover up to 250 columns for field selection while previews stay compact. Dragging remains available in Harmonize and Integrate where visual matching is useful.

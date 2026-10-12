@@ -25,6 +25,18 @@ Thumbs.db
 local-data/
 exports/
 *.log
-
-# Local MinIO object storage
+# Local environment and object storage
 storage/minio/
+# Frontend build artifacts
+frontend/node_modules/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Local generated/build artifacts
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+storage/minio/
+.env
+storage/
