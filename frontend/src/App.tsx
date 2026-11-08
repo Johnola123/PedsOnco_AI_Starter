@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import CcdiReadiness from './CcdiReadiness'
 import {
   Cohort,
   Dataset,
@@ -24,7 +25,7 @@ import {
   IntegrationValidation,
 } from './api'
 
-type View = 'cohorts' | 'add' | 'workspace' | 'merge'
+type View = 'cohorts' | 'add' | 'workspace' | 'merge' | 'ccdi'
 type WorkspaceTab = 'files' | 'inspect' | 'harmonize' | 'edit' | 'integrate' | 'explore' | 'export'
 type IntakeMode = 'files' | 'url'
 
@@ -494,7 +495,7 @@ export default function App() {
     setMergeSources((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name])
   }
 
-  const nav: Array<[View, string]> = [['cohorts', 'Cohorts'], ['add', 'Add data'], ['workspace', 'Workspace'], ['merge', 'Cross-cohort merge']]
+  const nav: Array<[View, string]> = [['cohorts', 'Cohorts'], ['add', 'Add data'], ['workspace', 'Workspace'], ['merge', 'Cross-cohort merge'], ['ccdi', 'CCDI readiness']]
   const workspaceTabs: WorkspaceTab[] = ['files', 'inspect', 'harmonize', 'edit', 'integrate', 'explore', 'export']
 
   return <div className="app">
@@ -507,6 +508,7 @@ export default function App() {
       <main>
         {message && <div className="message" role="status">{message}<button type="button" onClick={() => setMessage('')}>×</button></div>}
 
+        {view === 'ccdi' && <CcdiReadiness />}
         {view === 'cohorts' && <>
           <section className="intro"><div><p className="eyebrow">Cohort-centered workflow</p><h1>Prepare each cohort from raw files to analysis-ready exports.</h1><p>Each cohort now has its own Files → Inspect → Harmonize → Edit → Integrate → Explore → Export workspace. Cross-cohort merging is intentionally separate.</p></div><button className="primary" type="button" onClick={() => { setProjectName(''); setView('add') }}>Add cohort data</button></section>
           <section className="stats"><article><span>Source cohorts</span><strong>{sourceCohorts.length}</strong></article><article><span>Cross-cohort views</span><strong>{cohorts.filter((c) => c.kind === 'merged').length}</strong></article><article><span>Registered files</span><strong>{datasets.length}</strong></article><article><span>Storage</span><strong>{formatBytes(datasets.reduce((sum, item) => sum + item.size_bytes, 0))}</strong></article></section>

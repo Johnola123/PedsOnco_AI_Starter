@@ -12,6 +12,8 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
+from .ccdi import inspect_workbook, candidate_package
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import OperationalError
@@ -777,3 +779,89 @@ def cohort_export_manifest(cohort_name: str, db: Session = Depends(get_db)):
         "workspace_records": [record.model_dump(mode="json") for record in records],
         "provenance_note": "Raw source objects are preserved; workspace records describe harmonization, edits, and integrations non-destructively.",
     }
+
+
+# ---------------------------------------------------------------------------
+# Track 1: official-template-driven CCDI candidate metadata preparation
+# ---------------------------------------------------------------------------
+@app.post("/api/ccdi/inspect-template")
+async def ccdi_inspect_template(template: UploadFile = File(...)):
+    try:
+        return inspect_workbook(await template.read())
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(400, detail="Invalid workbook or unreadable CCDI template.") from exc
+
+
+@app.post("/api/ccdi/validate-workbook")
+async def ccdi_validate_workbook(workbook: UploadFile = File(...)):
+    try:
+        return inspect_workbook(await workbook.read(), check_values=True)
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(400, detail="Invalid workbook.") from exc
+
+
+@app.post("/api/ccdi/build-candidate")
+async def ccdi_build_candidate(template: UploadFile = File(...), source: UploadFile = File(...),
+                               node: str = Form(...), mappings_json: str = Form(...),
+                               accession: str = Form(default="")):
+    try:
+        mappings = json.loads(mappings_json)
+        if not isinstance(mappings, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k,v in mappings.items()):
+            raise ValueError("Mappings must be a JSON object of source field to CCDI property.")
+        package = candidate_package(await template.read(), source.filename or "source.csv",
+                                    await source.read(), node, mappings, source_accession=accession)
+        return Response(content=package, media_type="application/zip", headers={
+            "Content-Disposition": 'attachment; filename="ccdi_candidate_package.zip"'
+        })
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(400, detail="Could not generate candidate package; check workbook structure and mapping.") from exc
+
+@app.get('/api/public-sources/gdc/project/{project_id}')
+async def gdc_project_metadata(project_id: str):
+    """Public project metadata lookup; never requests controlled-access files."""
+    import re
+    if not re.fullmatch(r'[A-Za-z0-9_-]{3,50}', project_id):
+        raise HTTPException(422, detail='Invalid GDC project identifier.')
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(f'https://api.gdc.cancer.gov/projects/{project_id}',
+                                        params={'expand': 'summary'})
+            response.raise_for_status()
+            payload = response.json()
+        result = payload.get('data', {})
+        return {'source': 'NCI GDC', 'project_id': project_id,
+                'metadata': result, 'public_metadata_only': True,
+                'link': f'https://portal.gdc.cancer.gov/projects/{project_id}'}
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(502, detail=f'GDC returned HTTP {exc.response.status_code}.') from exc
+    except (httpx.RequestError, ValueError) as exc:
+        raise HTTPException(502, detail='GDC metadata is temporarily unreachable.') from exc
+
+
+@app.get('/api/public-sources/geo/study/{accession}')
+async def geo_study_metadata(accession: str):
+    """GEO study discovery via NCBI E-utilities, returning identifiers only."""
+    import re
+    if not re.fullmatch(r'GSE[0-9]{1,12}', accession.upper()):
+        raise HTTPException(422, detail='Use a GEO Series accession such as GSE12345.')
+    accession = accession.upper()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi',
+                                        params={'db': 'gds', 'term': f'{accession}[ACCN]',
+                                                'retmode': 'json', 'retmax': 10})
+            response.raise_for_status()
+            payload = response.json()
+        found = payload.get('esearchresult', {})
+        return {'source': 'NCBI GEO', 'accession': accession, 'database': 'gds',
+                'result_count': int(found.get('count', 0)), 'record_ids': found.get('idlist', []),
+                'public_metadata_only': True,
+                'link': f'https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={accession}'}
+    except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as exc:
+        raise HTTPException(502, detail='NCBI GEO metadata lookup is temporarily unavailable.') from exc

@@ -114,3 +114,11 @@ Source columns can be dragged onto CCDI-oriented canonical targets, edited manua
 ## v1.4 edit workspace
 
 The Edit tab now uses an explicit table + searchable field browser instead of field drag-and-drop. This keeps editing safer and easier to understand: choose file → choose sheet/table → choose field → choose operation → review/confirm. Wide Excel/CSV/TSV sources now discover up to 250 columns for field selection while previews stay compact. Dragging remains available in Harmonize and Integrate where visual matching is useful.
+
+## Track 1 enhancement — CCDI candidate metadata and public source verification (Nov 2026)
+
+New **CCDI readiness** navigation page includes live **public project/study metadata lookup** for GDC and GEO, user-supplied official-template inspection, and conversion of a reviewed public CSV/TSV mapping into a **candidate** metadata workbook ZIP with QC and provenance reports. Existing cohort upload, profiling and mapping features remain intact. Backend `/api/ccdi/*` and `/api/public-sources/*` endpoints are documented at `/docs`.
+
+**This is a prototype, not an official CCDI validator or registered submitter.** Required properties, controlled vocabularies, referential integrity, consent, dbGaP and designated S3 upload still require official CCDI review and integration. The synthetic example cohorts in `sample_data/` are **not** actual TARGET/GEO research cohorts.
+
+**Begin with `docs/TRACK1_STEP_BY_STEP_MAC.md`** for local setup, concrete browser checks, official model links, test commands, screenshots, and honest functionality/validation boundaries. Backend tests: `PYTHONPATH=backend pytest -q backend/tests/test_ccdi.py` (requires installed backend packages).
