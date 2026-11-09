@@ -1,0 +1,7 @@
+{
+  "participant_id": "TALL-P001",
+  "specimen_id": "TALL-S001",
+  "modality": "synthetic pathology preview",
+  "file": "pathology_preview.png",
+  "note": "Not a diagnostic image. Synthetic file for UI and ingestion testing."
+}

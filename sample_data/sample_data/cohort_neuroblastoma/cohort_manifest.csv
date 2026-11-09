@@ -1,0 +1,11 @@
+file,role,modality
+clinical.csv,clinical participant table,clinical
+specimens.tsv,biospecimen/assay manifest,biospecimen
+clinical_nested.json,nested metadata example,metadata
+expression_counts.tsv,analysis-ready expression matrix,transcriptomics
+target_sequence.fasta,target/reference sequence example,sequence
+example_reads.fastq,tiny raw-read format example,sequence
+variants.vcf,variant call example,genomics
+variants.maf,mutation annotation example,genomics
+pathology_preview.png,synthetic image preview,imaging
+image_manifest.json,image-to-sample linkage metadata,imaging metadata

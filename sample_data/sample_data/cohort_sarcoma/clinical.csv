@@ -1,0 +1,5 @@
+participant_id,diagnosis,age_at_diagnosis_years,sex,vital_status,overall_survival_days
+SRC-P001,Sarcoma,5,F,Alive,1460
+SRC-P002,Sarcoma,8,M,Alive,980
+SRC-P003,Sarcoma,13,F,Alive,730
+SRC-P004,Sarcoma,17,M,Deceased,410

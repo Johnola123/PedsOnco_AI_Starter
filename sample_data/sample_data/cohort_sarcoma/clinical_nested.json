@@ -1,0 +1,64 @@
+{
+  "study": {
+    "study_id": "DEMO-SRC",
+    "title": "Synthetic Sarcoma cohort"
+  },
+  "participants": [
+    {
+      "id": "SRC-P001",
+      "demographics": {
+        "sex": "F",
+        "age_dx_years": 5
+      },
+      "diagnosis": {
+        "label": "Sarcoma"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 1460
+      }
+    },
+    {
+      "id": "SRC-P002",
+      "demographics": {
+        "sex": "M",
+        "age_dx_years": 8
+      },
+      "diagnosis": {
+        "label": "Sarcoma"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 980
+      }
+    },
+    {
+      "id": "SRC-P003",
+      "demographics": {
+        "sex": "F",
+        "age_dx_years": 13
+      },
+      "diagnosis": {
+        "label": "Sarcoma"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 730
+      }
+    },
+    {
+      "id": "SRC-P004",
+      "demographics": {
+        "sex": "M",
+        "age_dx_years": 17
+      },
+      "diagnosis": {
+        "label": "Sarcoma"
+      },
+      "outcome": {
+        "vital_status": "Deceased",
+        "os_days": 410
+      }
+    }
+  ]
+}

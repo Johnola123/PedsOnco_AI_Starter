@@ -1,0 +1,5 @@
+participant_id,diagnosis,age_at_diagnosis_years,sex,vital_status,overall_survival_days
+TALL-P001,T-ALL,6,F,Alive,1460
+TALL-P002,T-ALL,9,M,Alive,980
+TALL-P003,T-ALL,14,F,Alive,730
+TALL-P004,T-ALL,18,M,Deceased,410

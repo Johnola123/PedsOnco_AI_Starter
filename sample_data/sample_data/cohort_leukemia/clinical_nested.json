@@ -1,0 +1,64 @@
+{
+  "study": {
+    "study_id": "DEMO-TALL",
+    "title": "Synthetic T-ALL cohort"
+  },
+  "participants": [
+    {
+      "id": "TALL-P001",
+      "demographics": {
+        "sex": "F",
+        "age_dx_years": 6
+      },
+      "diagnosis": {
+        "label": "T-ALL"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 1460
+      }
+    },
+    {
+      "id": "TALL-P002",
+      "demographics": {
+        "sex": "M",
+        "age_dx_years": 9
+      },
+      "diagnosis": {
+        "label": "T-ALL"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 980
+      }
+    },
+    {
+      "id": "TALL-P003",
+      "demographics": {
+        "sex": "F",
+        "age_dx_years": 14
+      },
+      "diagnosis": {
+        "label": "T-ALL"
+      },
+      "outcome": {
+        "vital_status": "Alive",
+        "os_days": 730
+      }
+    },
+    {
+      "id": "TALL-P004",
+      "demographics": {
+        "sex": "M",
+        "age_dx_years": 18
+      },
+      "diagnosis": {
+        "label": "T-ALL"
+      },
+      "outcome": {
+        "vital_status": "Deceased",
+        "os_days": 410
+      }
+    }
+  ]
+}

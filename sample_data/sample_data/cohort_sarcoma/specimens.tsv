@@ -1,0 +1,5 @@
+participant_id	specimen_id	specimen_type	tumor_status	assay_type	collection_day
+SRC-P001	SRC-S001	Primary tumor	Tumor	RNA-seq; targeted DNA	0
+SRC-P002	SRC-S002	Primary tumor	Tumor	RNA-seq; targeted DNA	0
+SRC-P003	SRC-S003	Primary tumor	Tumor	RNA-seq; targeted DNA	0
+SRC-P004	SRC-S004	Primary tumor	Tumor	RNA-seq; targeted DNA	0
