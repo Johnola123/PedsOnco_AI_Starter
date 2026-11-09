@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
-from .ccdi import inspect_workbook, candidate_package
+from .ccdi import inspect_workbook, candidate_package, multi_node_candidate_package
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import OperationalError
@@ -784,6 +784,14 @@ def cohort_export_manifest(cohort_name: str, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 # Track 1: official-template-driven CCDI candidate metadata preparation
 # ---------------------------------------------------------------------------
+@app.get('/api/ccdi/reference-template')
+async def ccdi_reference_template():
+    from pathlib import Path
+    p = Path(__file__).parent / 'reference' / 'CCDI-DCC_Submission_Template_v2.2.0.xlsx'
+    return Response(content=p.read_bytes(), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition': 'attachment; filename="CCDI-DCC_Submission_Template_v2.2.0.xlsx"'})
+
+
 @app.post("/api/ccdi/inspect-template")
 async def ccdi_inspect_template(template: UploadFile = File(...)):
     try:
@@ -821,6 +829,21 @@ async def ccdi_build_candidate(template: UploadFile = File(...), source: UploadF
         raise HTTPException(422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(400, detail="Could not generate candidate package; check workbook structure and mapping.") from exc
+
+@app.post('/api/ccdi/build-multi-candidate')
+async def ccdi_build_multi_candidate(template: UploadFile = File(...), sources: UploadFile = File(...),
+                                     configuration_json: str = Form(...), accession: str = Form(default='')):
+    try:
+        configuration = json.loads(configuration_json)
+        package = multi_node_candidate_package(await template.read(), await sources.read(), configuration,
+                                               source_accession=accession)
+        return Response(content=package, media_type='application/zip', headers={
+            'Content-Disposition': 'attachment; filename="ccdi_multinode_candidate.zip"'})
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(400, detail='Unable to create multi-node candidate; check ZIP and mappings.') from exc
+
 
 @app.get('/api/public-sources/gdc/project/{project_id}')
 async def gdc_project_metadata(project_id: str):

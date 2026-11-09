@@ -495,7 +495,14 @@ export default function App() {
     setMergeSources((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name])
   }
 
-  const nav: Array<[View, string]> = [['cohorts', 'Cohorts'], ['add', 'Add data'], ['workspace', 'Workspace'], ['merge', 'Cross-cohort merge'], ['ccdi', 'CCDI readiness']]
+  const nav: Array<[View, string, string]> = [['cohorts', 'Cohorts', '◫'], ['add', 'Add data', '+'], ['workspace', 'Workspace', '▤'], ['merge', 'Cross-cohort merge', '⇄'], ['ccdi', 'CCDI preparation', '✓']]
+  const pageTips: Record<View, { title: string; detail: string; action: string }> = {
+    cohorts: {title:'Start with a cohort', detail:'Browse your registered cohorts or import a new public or permitted dataset. Original data stays preserved.', action:'Add cohort'},
+    add: {title:'Data intake', detail:'Upload source files or register a permitted direct source URL. Do not import restricted human data without approval.', action:'Browse cohorts'},
+    workspace: {title:'Prepare, review, and trace', detail:'Use the workspace tabs in order. Every mapping and edit remains reviewable before export.', action:'CCDI preparation'},
+    merge: {title:'Cross-cohort integration', detail:'Combine only compatible, reviewed data and verify join keys before downstream use.', action:'Browse cohorts'},
+    ccdi: {title:'CCDI handoff is separate from submission', detail:'Prepare and validate a candidate workbook locally. Official CCDI transfer requires authorization.', action:'Browse cohorts'},
+  }
   const workspaceTabs: WorkspaceTab[] = ['files', 'inspect', 'harmonize', 'edit', 'integrate', 'explore', 'export']
 
   return <div className="app">
@@ -504,8 +511,9 @@ export default function App() {
       <div className={`health ${health?.status === 'ok' ? 'ok' : ''}`}><i />{health?.status === 'ok' ? 'Connected' : 'Checking'}</div>
     </header>
     <div className="layout">
-      <nav className="nav" aria-label="Primary navigation">{nav.map(([id, label]) => <button key={id} type="button" className={view === id ? 'active' : ''} onClick={() => id === 'workspace' && !selectedCohort ? setView('cohorts') : setView(id)}>{label}</button>)}</nav>
+      <nav className="nav" aria-label="Primary navigation">{nav.map(([id, label, symbol]) => <button key={id} type="button" className={view === id ? 'active' : ''} onClick={() => id === 'workspace' && !selectedCohort ? setView('cohorts') : setView(id)}><span className="nav-icon" aria-hidden="true">{symbol}</span>{label}</button>)}</nav>
       <main>
+        <div className="page-guide" role="region" aria-label="Page guidance"><div><span className="guide-label">WORKFLOW GUIDE</span><strong>{pageTips[view].title}</strong><p>{pageTips[view].detail}</p></div><button className="guide-button" type="button" onClick={() => setView(view === 'cohorts' ? 'add' : view === 'workspace' ? 'ccdi' : 'cohorts')}>{pageTips[view].action} <span aria-hidden="true">→</span></button></div>
         {message && <div className="message" role="status">{message}<button type="button" onClick={() => setMessage('')}>×</button></div>}
 
         {view === 'ccdi' && <CcdiReadiness />}

@@ -1,6 +1,8 @@
 import csv
 import io
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -116,8 +118,8 @@ def _fields_from_preview(preview: list[list[Any]]) -> list[dict[str, Any]]:
         })
     return fields
 
-def profile_excel(data: bytes, filename: str) -> dict[str, Any]:
-    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+def profile_excel(data: bytes | str, filename: str) -> dict[str, Any]:
+    wb = load_workbook(io.BytesIO(data) if isinstance(data, bytes) else data, read_only=True, data_only=True)
     sheets = []
     role_counts: dict[str, int] = {}
     try:
@@ -202,19 +204,90 @@ def profile_json(data: bytes, filename: str) -> dict[str, Any]:
     }
 
 
+# Large-object profiling uses bounded streaming and preserves honest sample statistics.
+# It never loads an arbitrarily large CSV/TSV object into RAM.
+MAX_SAMPLE_ROWS = 5000
+MAX_WORKBOOK_DISK_BYTES = 512 * 1024 * 1024
+
+
+def _stream_delimited_profile(object_key: str, filename: str, delimiter: str) -> dict[str, Any]:
+    response = get_s3_client().get_object(Bucket=settings.s3_bucket, Key=object_key)
+    body = response["Body"]
+    # TextIOWrapper handles UTF-8 and CSV quoted newlines across stream chunks.
+    text_stream = io.TextIOWrapper(body, encoding="utf-8-sig", errors="replace", newline="")
+    try:
+        reader = csv.reader(text_stream, delimiter=delimiter)
+        sample = []
+        field_rows = []
+        max_cols = 0
+        for row in reader:
+            max_cols = max(max_cols, len(row))
+            if len(sample) < 6:
+                sample.append(row[:12])
+            if len(field_rows) < 6:
+                field_rows.append(row[:250])
+            if len(field_rows) >= 6:
+                break
+        # The row count is intentionally not claimed for large objects.
+        return {
+            "format": "tsv" if delimiter == "\t" else "csv",
+            "filename": filename,
+            "table_count": 1,
+            "tables": [{"name": Path(filename).stem, "rows": None,
+                        "columns": max_cols, "role": "tabular", "preview": sample,
+                        "fields": _fields_from_preview(field_rows)}],
+            "profile_mode": "bounded_stream_sample",
+            "sampled_data_rows": max(0, len(field_rows) - 1),
+            "row_count_complete": False,
+            "message": "Large-file preview uses a bounded streaming sample. Full row count and QC have not been calculated.",
+        }
+    finally:
+        text_stream.close()
+
+
+def _stream_excel_profile(object_key: str, filename: str, size: int) -> dict[str, Any]:
+    if size > MAX_WORKBOOK_DISK_BYTES:
+        return {"format": "excel_workbook", "filename": filename, "table_count": 0,
+                "profile_mode": "metadata_only", "object_bytes": size,
+                "message": "Workbook exceeds the 512 MiB temporary-disk profiling limit. Split it or inspect its metadata separately."}
+    tmp_path = None
+    response = get_s3_client().get_object(Bucket=settings.s3_bucket, Key=object_key)
+    body = response["Body"]
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp_path = tmp.name
+            while True:
+                chunk = body.read(4 * 1024 * 1024)
+                if not chunk:
+                    break
+                tmp.write(chunk)
+        result = profile_excel(tmp_path, filename)
+        result["profile_mode"] = "read_only_disk_spooled"
+        result["object_bytes"] = size
+        return result
+    finally:
+        body.close()
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 def profile_dataset(object_key: str, filename: str) -> dict[str, Any]:
     suffix = Path(filename).suffix.lower()
+    head = get_s3_client().head_object(Bucket=settings.s3_bucket, Key=object_key)
+    size = int(head.get("ContentLength", 0))
     if suffix in {".xlsx", ".xlsm"}:
-        return profile_excel(_read_all(object_key), filename)
-    if suffix == ".csv":
-        return profile_delimited(_read_all(object_key), filename, ",")
-    if suffix in {".tsv", ".txt"}:
-        return profile_delimited(_read_all(object_key), filename, "\t")
+        return (profile_excel(_read_all(object_key), filename) if size <= 75 * 1024 * 1024
+                else _stream_excel_profile(object_key, filename, size))
+    if suffix in {".csv", ".tsv", ".txt"}:
+        delimiter = "," if suffix == ".csv" else "\t"
+        return (profile_delimited(_read_all(object_key), filename, delimiter)
+                if size <= 75 * 1024 * 1024 else _stream_delimited_profile(object_key, filename, delimiter))
     if suffix in {".json", ".ndjson"}:
-        return profile_json(_read_all(object_key), filename)
-    return {
-        "format": suffix.lstrip(".") or "unknown",
-        "filename": filename,
-        "table_count": 0,
-        "message": "File is registered with the cohort. Format-specific harmonization can be added without changing cohort membership.",
-    }
+        if size <= 75 * 1024 * 1024:
+            return profile_json(_read_all(object_key), filename)
+        return {"format": suffix.lstrip("."), "filename": filename,
+                "table_count": 0, "profile_mode": "metadata_only", "object_bytes": size,
+                "message": "Large JSON is registered safely but not fully previewed; use NDJSON streaming or smaller batches for field profiling."}
+    return {"format": suffix.lstrip(".") or "unknown", "filename": filename,
+            "table_count": 0, "object_bytes": size,
+            "message": "File is registered with the cohort; no structured preview is supported for this format."}

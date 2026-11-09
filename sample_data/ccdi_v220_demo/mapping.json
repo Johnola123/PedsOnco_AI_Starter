@@ -1,0 +1,19 @@
+{
+  "participant": {
+    "file": "participant.csv",
+    "mappings": {
+      "patient_id": "participant_id",
+      "race": "race",
+      "sex": "sex_at_birth",
+      "species": "species"
+    }
+  },
+  "diagnosis": {
+    "file": "diagnosis.csv",
+    "mappings": {
+      "patient_id": "participant.participant_id",
+      "diagnosis_id": "diagnosis_id",
+      "disease": "submitted_diagnosis"
+    }
+  }
+}

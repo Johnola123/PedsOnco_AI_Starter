@@ -1,3 +1,5 @@
+> November 2026 Track 1 patch: large structured object preview handling and clearer public accession workflow. See `docs/LARGE_FILE_PREVIEW_FIX_AND_ACCESSION_NEXT_STEPS.md`.
+
 # PedsOnco AI — Milestone 1 CCDI Interoperability Studio
 
 A Git-ready, deployable feasibility application for the **Childhood, Adolescent and Young Adult Cancer Data Innovation Challenge — Phase I / Milestone 1**.
