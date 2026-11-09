@@ -125,3 +125,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .stats article:nth-child(4n+1){border-top:3px solid #6066df}.stats article:nth-child(4n+2){border-top:3px solid #11a8a0}.stats article:nth-child(4n+3){border-top:3px solid #f0a850}.stats article:nth-child(4n+4){border-top:3px solid #7e63d8}
 @media(max-width:760px){.page-guide{flex-direction:column;align-items:stretch}.guide-button{align-self:flex-start}.nav-icon{display:none}.nav button:hover{transform:none}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.001ms!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
+
+/* Source-file deletion: readable, explicitly destructive confirmation. */
+.asset-actions .asset-delete { color:#b02c45; background:#fff0f2; border:1px solid #f3c0cc; border-radius:9px; padding:8px 12px; }
+.asset-actions .asset-delete:hover { background:#ffe0e7; }
+.asset-actions .asset-delete:disabled { opacity:.55; cursor:not-allowed; }
+.confirm-box:has(.confirm-description) { max-height:min(85vh,760px); overflow:auto; width:min(600px,100%); }
+.confirm-box .confirm-description { white-space:pre-line; overflow-wrap:anywhere; font-size:14px; }

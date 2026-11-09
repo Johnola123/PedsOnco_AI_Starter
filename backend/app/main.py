@@ -277,6 +277,107 @@ def dataset_download_url(dataset_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Safe dataset deletion with a server-generated, exact dependency preview.
+# This intentionally does not cascade to unrelated cohort files or upstream
+# public repositories. A deletion fingerprint prevents approving a stale list.
+# ---------------------------------------------------------------------------
+
+def _record_uses_dataset(record: CohortWorkspaceRecord, dataset_id: int) -> bool:
+    try:
+        payload = json.loads(record.payload_json)
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    id_fields = ("dataset_id", "left_dataset_id", "right_dataset_id",
+                 "source_dataset_id", "target_dataset_id")
+    for field in id_fields:
+        if str(payload.get(field, "")) == str(dataset_id):
+            return True
+    return any(isinstance(payload.get(k), list) and any(str(v) == str(dataset_id) for v in payload[k])
+               for k in ("dataset_ids", "source_dataset_ids"))
+
+
+def _dataset_deletion_preview(dataset: Dataset, db: Session) -> dict:
+    records = list(db.scalars(select(CohortWorkspaceRecord).where(
+        CohortWorkspaceRecord.project_name == dataset.project_name
+    )).all())
+    dependencies = sorted(
+        (r for r in records if _record_uses_dataset(r, dataset.id)), key=lambda r: r.id
+    )
+    merged_views = sorted(
+        m.name for m in db.scalars(select(CohortMerge)).all()
+        if dataset.project_name in _merge_sources(m)
+    )
+    other_files = db.scalar(select(func.count(Dataset.id)).where(
+        Dataset.project_name == dataset.project_name, Dataset.id != dataset.id
+    )) or 0
+    # Hash the exact affected resources, so any newly saved dependency blocks a
+    # stale confirmation and requires the user to review the impact again.
+    fingerprint_source = json.dumps({
+        "dataset": dataset.id, "sha256": dataset.sha256,
+        "dependencies": [(r.id, r.payload_json) for r in dependencies],
+        "merge_views": merged_views,
+    }, sort_keys=True)
+    token = hashlib.sha256(fingerprint_source.encode()).hexdigest()
+    return {
+        "dataset_id": dataset.id, "filename": dataset.original_name,
+        "cohort": dataset.project_name, "size_bytes": dataset.size_bytes,
+        "has_profile": dataset.profile is not None,
+        "has_source_metadata": dataset.source is not None,
+        "dependent_records": [{"id": r.id, "type": r.record_type, "name": r.name}
+                              for r in dependencies],
+        "merged_views_affected": merged_views,
+        "other_files_preserved": other_files,
+        "will_delete_storage_object": True,
+        "token": token,
+    }
+
+
+@app.get("/api/datasets/{dataset_id}/delete-preview")
+def dataset_delete_preview(dataset_id: int, db: Session = Depends(get_db)):
+    dataset = db.get(Dataset, dataset_id)
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="Source file not found.")
+    return _dataset_deletion_preview(dataset, db)
+
+
+@app.delete("/api/datasets/{dataset_id}")
+def delete_dataset(dataset_id: int, confirmation_token: str, db: Session = Depends(get_db)):
+    dataset = db.get(Dataset, dataset_id)
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="Source file not found.")
+    preview = _dataset_deletion_preview(dataset, db)
+    if confirmation_token != preview["token"]:
+        raise HTTPException(status_code=409, detail="Deletion impact changed. Review the file and related records again.")
+    records = list(db.scalars(select(CohortWorkspaceRecord).where(
+        CohortWorkspaceRecord.project_name == dataset.project_name
+    )).all())
+    dependencies = [r for r in records if _record_uses_dataset(r, dataset.id)]
+    object_key = dataset.object_key
+    for record in dependencies:
+        db.delete(record)
+    # Dataset's ORM relationships delete its source provenance and cached profile.
+    db.delete(dataset)
+    db.commit()
+    storage_warning = None
+    try:
+        delete_object(object_key)
+    except Exception:
+        # The metadata deletion succeeded, but orphaned object storage must be
+        # cleaned up by an operator. Never report full physical deletion.
+        import logging
+        logging.exception("Manual object cleanup needed for deleted dataset %s, key %s", dataset_id, object_key)
+        storage_warning = "Metadata deleted, but physical object removal failed. Ask an administrator to inspect server logs and remove the orphaned object."
+    return {
+        "status": "deleted_with_storage_warning" if storage_warning else "deleted",
+        "dataset_id": dataset_id, "removed_workspace_records": len(dependencies),
+        "merged_views_affected": preview["merged_views_affected"],
+        "storage_warning": storage_warning,
+    }
+
+
+# ---------------------------------------------------------------------------
 # External URL/API import
 # Server-side import is used because arbitrary external sites often block browser
 # cross-origin reads. Authorization is transient and is never stored.

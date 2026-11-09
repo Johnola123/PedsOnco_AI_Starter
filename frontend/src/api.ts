@@ -186,6 +186,36 @@ export async function importExternalUrl(params: {
   })
 }
 
+export type DatasetDeletePreview = {
+  dataset_id: number
+  filename: string
+  cohort: string
+  size_bytes: number
+  has_profile: boolean
+  has_source_metadata: boolean
+  dependent_records: Array<{id: number; type: string; name: string}>
+  merged_views_affected: string[]
+  other_files_preserved: number
+  will_delete_storage_object: boolean
+  token: string
+}
+
+export type DatasetDeleteResult = {
+  status: string
+  dataset_id: number
+  removed_workspace_records: number
+  merged_views_affected: string[]
+  storage_warning: string | null
+}
+
+export async function previewDatasetDelete(datasetId: number): Promise<DatasetDeletePreview> {
+  return apiJson(`${API_BASE}/datasets/${datasetId}/delete-preview`)
+}
+
+export async function deleteDatasetConfirmed(datasetId: number, token: string): Promise<DatasetDeleteResult> {
+  return apiJson(`${API_BASE}/datasets/${datasetId}?confirmation_token=${encodeURIComponent(token)}`, { method: 'DELETE' })
+}
+
 export async function getDownloadUrl(datasetId: number): Promise<string> {
   const result = await apiJson<{ url: string }>(`${API_BASE}/datasets/${datasetId}/download-url`)
   return result.url

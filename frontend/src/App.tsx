@@ -13,6 +13,8 @@ import {
   getDatasetProfile,
   getDatasets,
   getDownloadUrl,
+  previewDatasetDelete,
+  deleteDatasetConfirmed,
   getHealth,
   getWorkspaceRecords,
   Health,
@@ -449,6 +451,56 @@ export default function App() {
     } catch (error) { setMessage(String(error)) } finally { setBusy(false) }
   }
 
+  async function requestDeleteDataset(dataset: Dataset) {
+    if (busy) return
+    setBusy(true)
+    try {
+      const impact = await previewDatasetDelete(dataset.id)
+      const related = impact.dependent_records.map((record) => `• ${record.type}: ${record.name}`)
+      const lines = [
+        `Delete “${impact.filename}” (${formatBytes(impact.size_bytes)}) from cohort “${impact.cohort}”?`,
+        '',
+        'The following will be permanently deleted:',
+        '• Original uploaded source object from this application’s storage',
+        ...(impact.has_source_metadata ? ['• Source/import provenance metadata'] : []),
+        ...(impact.has_profile ? ['• Cached profiling results and previews'] : []),
+        ...related,
+        ...(related.length === 0 ? ['• No saved mapping, edit, or integration records reference this file'] : []),
+        '',
+        `${impact.other_files_preserved} other source file(s) in this cohort will remain untouched.`,
+        ...(impact.merged_views_affected.length ? [
+          `Cross-cohort views that reference this cohort (${impact.merged_views_affected.join(', ')}) will NOT be deleted, but may become incomplete.`,
+        ] : []),
+        'This will not delete the upstream GEO/GDC file or any downloaded copies outside this application.',
+        'This action cannot be undone.',
+      ]
+      requestConfirm({
+        title: 'Permanently delete source file and related data?',
+        message: lines.join('\n'), confirmLabel: 'Yes, delete file and related data', tone: 'danger',
+        action: async () => {
+          setBusy(true)
+          try {
+            const result = await deleteDatasetConfirmed(dataset.id, impact.token)
+            const remaining = await getCohortDatasets(impact.cohort)
+            setCohortFiles(remaining)
+            setWorkspaceRecords(await getWorkspaceRecords(impact.cohort))
+            setProfiles((current) => { const next = { ...current }; delete next[dataset.id]; return next })
+            if (selectedDatasetId === dataset.id) {
+              setSelectedDatasetId(remaining[0]?.id || null)
+              setSelectedTable(''); setMappings([]); setMappingValidation(null); setIntegrationValidation(null)
+            }
+            setLeftDataset((v) => v === String(dataset.id) ? '' : v)
+            setRightDataset((v) => v === String(dataset.id) ? '' : v)
+            await refresh()
+            setMessage(result.storage_warning || `Deleted ${dataset.original_name} and ${result.removed_workspace_records} related workspace record(s).`)
+          } catch (error) { setMessage(`Delete unsuccessful: ${String(error)}`) }
+          finally { setBusy(false) }
+        },
+      })
+    } catch (error) { setMessage(`Could not review deletion impact: ${String(error)}`) }
+    finally { setBusy(false) }
+  }
+
   async function removeRecord(recordId: number) {
     if (!selectedCohort) return
     requestConfirm({
@@ -530,7 +582,7 @@ export default function App() {
           <section className="workspace-hero"><div><button className="back-link" onClick={() => setView('cohorts')}>← All cohorts</button><p className="eyebrow">Cohort workspace</p><h1>{selectedCohort}</h1><div className="workspace-meta"><span>{cohortFiles.length} files</span><span>{formats.length} modalities/types</span><span>{totalTables || '—'} profiled tables</span><span>{workspaceRecords.length} saved decisions</span></div></div><button className="secondary" type="button" onClick={() => addToCohort(selectedCohort)}>+ Add files</button></section>
           <nav className="workspace-tabs">{workspaceTabs.map((tab) => <button key={tab} className={workspaceTab === tab ? 'active' : ''} onClick={() => setWorkspaceTab(tab)}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}</nav>
 
-          {workspaceTab === 'files' && <section className="panel"><div className="section-head"><div><h2>Cohort files</h2><p>Every source asset stays linked to this cohort and keeps its original provenance.</p></div><button className="secondary" onClick={() => addToCohort(selectedCohort)}>Add more files</button></div><label className={`workspace-drop ${workspaceDragActive ? 'drag-active' : ''}`} onDragEnter={(e) => { e.preventDefault(); setWorkspaceDragActive(true) }} onDragOver={(e) => { e.preventDefault(); setWorkspaceDragActive(true) }} onDragLeave={(e) => { if (e.currentTarget === e.target) setWorkspaceDragActive(false) }} onDrop={(e) => { e.preventDefault(); void uploadFilesToWorkspace(Array.from(e.dataTransfer.files || [])) }}><input type="file" multiple onChange={(e) => void uploadFilesToWorkspace(Array.from(e.target.files || []))} /><strong>{workspaceDragActive ? 'Drop to add to this cohort' : 'Drag & drop additional cohort files'}</strong><span>Drop files anywhere in this box, or click to browse. Existing source files are never overwritten.</span></label><div className="asset-grid">{cohortFiles.map((dataset) => <article className="asset-card" key={dataset.id}><div className="asset-icon">{prettyType(dataset.original_name).slice(0, 4)}</div><div className="asset-body"><strong>{dataset.original_name}</strong><span>{prettyType(dataset.original_name)} · {formatBytes(dataset.size_bytes)}</span><small>Added {new Date(dataset.created_at).toLocaleString()}</small></div><div className="asset-actions"><button onClick={() => inspectDataset(dataset, 'inspect')}>Inspect</button><button onClick={() => inspectDataset(dataset, 'harmonize')}>Harmonize</button><button onClick={() => download(dataset)}>Download</button></div></article>)}</div></section>}
+          {workspaceTab === 'files' && <section className="panel"><div className="section-head"><div><h2>Cohort files</h2><p>Every source asset stays linked to this cohort and keeps its original provenance.</p></div><button className="secondary" onClick={() => addToCohort(selectedCohort)}>Add more files</button></div><label className={`workspace-drop ${workspaceDragActive ? 'drag-active' : ''}`} onDragEnter={(e) => { e.preventDefault(); setWorkspaceDragActive(true) }} onDragOver={(e) => { e.preventDefault(); setWorkspaceDragActive(true) }} onDragLeave={(e) => { if (e.currentTarget === e.target) setWorkspaceDragActive(false) }} onDrop={(e) => { e.preventDefault(); void uploadFilesToWorkspace(Array.from(e.dataTransfer.files || [])) }}><input type="file" multiple onChange={(e) => void uploadFilesToWorkspace(Array.from(e.target.files || []))} /><strong>{workspaceDragActive ? 'Drop to add to this cohort' : 'Drag & drop additional cohort files'}</strong><span>Drop files anywhere in this box, or click to browse. Existing source files are never overwritten.</span></label><div className="asset-grid">{cohortFiles.map((dataset) => <article className="asset-card" key={dataset.id}><div className="asset-icon">{prettyType(dataset.original_name).slice(0, 4)}</div><div className="asset-body"><strong>{dataset.original_name}</strong><span>{prettyType(dataset.original_name)} · {formatBytes(dataset.size_bytes)}</span><small>Added {new Date(dataset.created_at).toLocaleString()}</small></div><div className="asset-actions"><button onClick={() => inspectDataset(dataset, 'inspect')}>Inspect</button><button onClick={() => inspectDataset(dataset, 'harmonize')}>Harmonize</button><button onClick={() => download(dataset)}>Download</button><button type="button" className="danger-link asset-delete" disabled={busy} onClick={() => void requestDeleteDataset(dataset)}>Delete</button></div></article>)}</div></section>}
 
           {workspaceTab === 'inspect' && <div className="workspace-split"><section className="panel"><h2>Select or drop a file</h2><p>Choose an existing cohort asset, or drop a new local file below to add it and inspect it immediately.</p><label className={`inspect-drop ${workspaceDragActive ? 'drag-active' : ''}`} onDragEnter={(e) => { e.preventDefault(); setWorkspaceDragActive(true) }} onDragOver={(e) => { e.preventDefault(); setWorkspaceDragActive(true) }} onDragLeave={(e) => { if (e.currentTarget === e.target) setWorkspaceDragActive(false) }} onDrop={(e) => { e.preventDefault(); void uploadFilesToWorkspace(Array.from(e.dataTransfer.files || []), true) }}><input type="file" multiple onChange={(e) => void uploadFilesToWorkspace(Array.from(e.target.files || []), true)} /><strong>Drop file(s) to inspect</strong><span>Uploads into {selectedCohort} and opens the newest file.</span></label><div className="file-list">{cohortFiles.map((dataset) => <button type="button" className={selectedDatasetId === dataset.id ? 'selected-file' : ''} key={dataset.id} onClick={() => inspectDataset(dataset)}><span className="file-type">{prettyType(dataset.original_name)}</span><span><strong>{dataset.original_name}</strong><small>{formatBytes(dataset.size_bytes)}</small></span><em>{profilingId === dataset.id ? 'Inspecting…' : 'Open'}</em></button>)}</div></section><section className="panel profile-panel">{!selectedProfile ? <div className="empty compact"><strong>Select a file</strong><p>Structured files show table/sheet inventory and previews; large molecular/imaging assets retain metadata and provenance.</p></div> : <ProfileView profile={selectedProfile} />}</section></div>}
 
@@ -574,7 +626,7 @@ export default function App() {
 
 
 function ConfirmDialog({ state, onCancel, onConfirm }: { state: NonNullable<ConfirmState>; onCancel: () => void; onConfirm: () => void }) {
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.currentTarget === e.target) onCancel() }}><section className="confirm-box" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><div className={`confirm-mark ${state.tone === 'danger' ? 'danger' : ''}`}>{state.tone === 'danger' ? '!' : '✓'}</div><h2 id="confirm-title">{state.title}</h2><p>{state.message}</p><div className="confirm-actions"><button type="button" className="secondary" onClick={onCancel}>Cancel</button><button type="button" className={state.tone === 'danger' ? 'danger-button' : 'primary'} onClick={onConfirm}>{state.confirmLabel || 'Confirm'}</button></div></section></div>
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.currentTarget === e.target) onCancel() }}><section className="confirm-box" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><div className={`confirm-mark ${state.tone === 'danger' ? 'danger' : ''}`}>{state.tone === 'danger' ? '!' : '✓'}</div><h2 id="confirm-title">{state.title}</h2><p className="confirm-description">{state.message}</p><div className="confirm-actions"><button type="button" className="secondary" onClick={onCancel}>Cancel</button><button type="button" className={state.tone === 'danger' ? 'danger-button' : 'primary'} onClick={onConfirm}>{state.confirmLabel || 'Confirm'}</button></div></section></div>
 }
 
 function ValidationPanel({ title, valid, score, issues }: { title: string; valid: boolean; score?: number; issues: Array<{ level: string; code: string; field?: string | null; message: string }> }) {
