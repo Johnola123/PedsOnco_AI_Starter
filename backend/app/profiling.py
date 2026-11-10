@@ -1,4 +1,5 @@
 import csv
+import gzip
 import io
 import json
 import os
@@ -271,10 +272,36 @@ def _stream_excel_profile(object_key: str, filename: str, size: int) -> dict[str
             os.unlink(tmp_path)
 
 
+def _compressed_text_preview(object_key: str, filename: str) -> dict[str, Any]:
+    """Read at most 1 MiB decompressed from a GEO compressed text matrix.
+
+    Never fully decompress an untrusted archive or claim complete row counts.
+    """
+    resp=get_s3_client().get_object(Bucket=settings.s3_bucket, Key=object_key)
+    body=resp['Body']
+    try:
+        with gzip.GzipFile(fileobj=body,mode='rb') as gz:
+            chunk=gz.read(1024*1024)
+        underlying=filename[:-3]
+        delim=',' if underlying.lower().endswith('.csv') else '\t'
+        result=profile_delimited(chunk,underlying,delim)
+        result['filename']=filename
+        result['profile_mode']='bounded_gzip_decompressed_preview'
+        result['row_count_complete']=False
+        result['sampled_data_rows']=result['tables'][0]['rows']
+        result['tables'][0]['rows']=None
+        result['message']='Preview of at most 1 MiB uncompressed content. Counts and missingness are sampled, not full-file QC. GEO Series Matrix header lines may need a specialized parser.'
+        return result
+    finally:
+        body.close()
+
+
 def profile_dataset(object_key: str, filename: str) -> dict[str, Any]:
     suffix = Path(filename).suffix.lower()
     head = get_s3_client().head_object(Bucket=settings.s3_bucket, Key=object_key)
     size = int(head.get("ContentLength", 0))
+    if filename.lower().endswith((".csv.gz", ".tsv.gz", ".txt.gz")):
+        return _compressed_text_preview(object_key, filename)
     if suffix in {".xlsx", ".xlsm"}:
         return (profile_excel(_read_all(object_key), filename) if size <= 75 * 1024 * 1024
                 else _stream_excel_profile(object_key, filename, size))

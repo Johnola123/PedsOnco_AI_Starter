@@ -124,3 +124,7 @@ New **CCDI readiness** navigation page includes live **public project/study meta
 **This is a prototype, not an official CCDI validator or registered submitter.** Required properties, controlled vocabularies, referential integrity, consent, dbGaP and designated S3 upload still require official CCDI review and integration. The synthetic example cohorts in `sample_data/` are **not** actual TARGET/GEO research cohorts.
 
 **Begin with `docs/TRACK1_STEP_BY_STEP_MAC.md`** for local setup, concrete browser checks, official model links, test commands, screenshots, and honest functionality/validation boundaries. Backend tests: `PYTHONPATH=backend pytest -q backend/tests/test_ccdi.py` (requires installed backend packages).
+
+## November 2026 expansion — A/B/C/D/E/F/G/H
+
+The new **Explore repositories**, **Data overview**, **Compare datasets** and **Evidence assistant** pages are installed. GEO/GDC live search, GDC open-file import, preview-only field summaries and deterministic local Q&A are available. Additional TCIA/St. Jude/CCDI/SRA/Kids First/dbGaP providers appear as **external discovery links**—not yet full API adapters. The assistant does not call a generative model. CCDI handoff remains local and does not sync to NCI. See `docs/DISCOVERY_EXPANSION_A_TO_H.md` for the exact status of each package, migration, validation steps, and safe-use limitations.

@@ -1,0 +1,3 @@
+## Proposed future integration (not currently implemented)
+
+A future phase will evaluate an institutionally approved, source-grounded generative AI assistant to support study discovery, metadata interpretation, ontology mapping, and explanations of validation findings. The assistant will use least-privilege retrieval, source attribution, audit logs, and human approval of proposed changes. Controlled-access genomic or clinical data will not be sent to external model services without the requisite institutional authorization and data-use safeguards. The Milestone 1 implementation presently uses deterministic, evidence-based metadata explanations; no generative AI endpoint is claimed as operational.

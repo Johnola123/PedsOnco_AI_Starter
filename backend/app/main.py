@@ -60,6 +60,11 @@ app = FastAPI(
     ),
 )
 
+from .discovery import router as discovery_router
+app.include_router(discovery_router)
+from .analytics import router as analytics_router
+app.include_router(analytics_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.web_origin_list,
@@ -989,3 +994,38 @@ async def geo_study_metadata(accession: str):
                 'link': f'https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={accession}'}
     except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as exc:
         raise HTTPException(502, detail='NCBI GEO metadata lookup is temporarily unavailable.') from exc
+
+@app.post('/api/discovery/gdc/import-open-file', response_model=DatasetOut)
+async def import_gdc_open_file(payload: dict, db: Session = Depends(get_db)):
+    """Server-selected GDC URL. User cannot supply arbitrary URL to this endpoint."""
+    import re
+    from .discovery import verify_gdc_file
+    file_id = str(payload.get('file_id', ''))
+    cohort = str(payload.get('cohort', '')).strip()
+    if not 1 <= len(cohort) <= 200:
+        raise HTTPException(422, detail='Choose a cohort name (1–200 characters).')
+    if not re.fullmatch(r'[a-fA-F0-9-]{36}', file_id):
+        raise HTTPException(422, detail='Invalid GDC file ID')
+    info = await verify_gdc_file(file_id)
+    if int(info.get('size') or 0) > settings.max_url_import_bytes:
+        raise HTTPException(413, detail='Selected GDC file exceeds the configured import size. Use a smaller public file or a manifest.')
+    # Import routine enforces HTTPS/SSRF validation, streaming size limits and SHA-256.
+    request = UrlImportRequest(project_name=cohort, url=info['download_url'],filename=info['name'])
+    from starlette.concurrency import run_in_threadpool
+    return await run_in_threadpool(import_from_url, request, db)
+
+
+@app.post('/api/discovery/geo/import-processed-file', response_model=DatasetOut)
+async def import_geo_processed_file(payload: dict, db: Session = Depends(get_db)):
+    """Import a selected public GEO processed candidate. Never accept arbitrary URLs."""
+    from .discovery import geo_files
+    from starlette.concurrency import run_in_threadpool
+    accession=str(payload.get('accession','')).strip().upper()
+    candidate=str(payload.get('file_id','')).strip()
+    cohort=str(payload.get('cohort','')).strip()
+    if not 1 <= len(cohort) <= 200:raise HTTPException(422,detail='Choose a cohort name (1–200 characters).')
+    listing=await geo_files(accession)
+    selected=next((f for f in listing['files'] if f['id']==candidate),None)
+    if not selected:raise HTTPException(422,detail='File is not present in current public GEO listing.')
+    req=UrlImportRequest(project_name=cohort,url=selected['download_url'],filename=selected['name'])
+    return await run_in_threadpool(import_from_url,req,db)

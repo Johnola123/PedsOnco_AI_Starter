@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import CcdiReadiness from './CcdiReadiness'
+import DiscoveryStudio from './DiscoveryStudio'
+import DataOverview from './DataOverview'
 import {
   Cohort,
   Dataset,
@@ -27,7 +29,7 @@ import {
   IntegrationValidation,
 } from './api'
 
-type View = 'cohorts' | 'add' | 'workspace' | 'merge' | 'ccdi'
+type View = 'cohorts' | 'add' | 'workspace' | 'merge' | 'ccdi' | 'explorer' | 'overview' | 'compare' | 'assistant'
 type WorkspaceTab = 'files' | 'inspect' | 'harmonize' | 'edit' | 'integrate' | 'explore' | 'export'
 type IntakeMode = 'files' | 'url'
 
@@ -547,13 +549,17 @@ export default function App() {
     setMergeSources((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name])
   }
 
-  const nav: Array<[View, string, string]> = [['cohorts', 'Cohorts', '◫'], ['add', 'Add data', '+'], ['workspace', 'Workspace', '▤'], ['merge', 'Cross-cohort merge', '⇄'], ['ccdi', 'CCDI preparation', '✓']]
+  const nav: Array<[View, string, string]> = [['cohorts', 'Cohorts', '◫'], ['add', 'Add data', '+'], ['workspace', 'Workspace', '▤'], ['merge', 'Cross-cohort merge', '⇄'], ['ccdi', 'CCDI preparation', '✓'], ['explorer','Explore repositories','⌕'],['overview','Data overview','▥'],['compare','Compare datasets','⇄'],['assistant','Evidence assistant','✦']]
   const pageTips: Record<View, { title: string; detail: string; action: string }> = {
     cohorts: {title:'Start with a cohort', detail:'Browse your registered cohorts or import a new public or permitted dataset. Original data stays preserved.', action:'Add cohort'},
     add: {title:'Data intake', detail:'Upload source files or register a permitted direct source URL. Do not import restricted human data without approval.', action:'Browse cohorts'},
     workspace: {title:'Prepare, review, and trace', detail:'Use the workspace tabs in order. Every mapping and edit remains reviewable before export.', action:'CCDI preparation'},
     merge: {title:'Cross-cohort integration', detail:'Combine only compatible, reviewed data and verify join keys before downstream use.', action:'Browse cohorts'},
     ccdi: {title:'CCDI handoff is separate from submission', detail:'Prepare and validate a candidate workbook locally. Official CCDI transfer requires authorization.', action:'Browse cohorts'},
+    explorer: {title:'Find public evidence before importing',detail:'Search GEO/GDC live metadata and inspect accessible files; other sources open their official discovery portals.',action:'Browse cohorts'},
+    overview: {title:'All registered data in one view',detail:'View cohort coverage, cached profile completeness and sampled missingness; counts are not unique patients.',action:'Browse cohorts'},
+    compare: {title:'Compare before merging',detail:'Review schema overlap without assuming fields have equivalent meaning or units.',action:'Browse cohorts'},
+    assistant: {title:'Evidence-grounded answers',detail:'Deterministic metadata assistant; no external LLM or sensitive data transfer.',action:'Browse cohorts'},
   }
   const workspaceTabs: WorkspaceTab[] = ['files', 'inspect', 'harmonize', 'edit', 'integrate', 'explore', 'export']
 
@@ -563,12 +569,16 @@ export default function App() {
       <div className={`health ${health?.status === 'ok' ? 'ok' : ''}`}><i />{health?.status === 'ok' ? 'Connected' : 'Checking'}</div>
     </header>
     <div className="layout">
-      <nav className="nav" aria-label="Primary navigation">{nav.map(([id, label, symbol]) => <button key={id} type="button" className={view === id ? 'active' : ''} onClick={() => id === 'workspace' && !selectedCohort ? setView('cohorts') : setView(id)}><span className="nav-icon" aria-hidden="true">{symbol}</span>{label}</button>)}</nav>
+      <nav className="nav" aria-label="Primary navigation">
+        {([['DATA & DISCOVERY',['cohorts','add','explorer','overview']],['ANALYSIS & REVIEW',['workspace','compare','merge','assistant']],['SUBMISSION PREPARATION',['ccdi']]] as Array<[string,View[]]>).map(([group,ids])=><div className="nav-group" key={group}><span className="nav-group-label">{group}</span>{nav.filter(([id])=>ids.includes(id)).map(([id,label,symbol])=><button key={id} type="button" className={view===id?'active':''} onClick={()=>id==='workspace'&&!selectedCohort?setView('cohorts'):setView(id)}><span className="nav-icon" aria-hidden="true">{symbol}</span>{label}</button>)}</div>)}
+      </nav>
       <main>
-        <div className="page-guide" role="region" aria-label="Page guidance"><div><span className="guide-label">WORKFLOW GUIDE</span><strong>{pageTips[view].title}</strong><p>{pageTips[view].detail}</p></div><button className="guide-button" type="button" onClick={() => setView(view === 'cohorts' ? 'add' : view === 'workspace' ? 'ccdi' : 'cohorts')}>{pageTips[view].action} <span aria-hidden="true">→</span></button></div>
+        <details className="page-help"><summary>ⓘ How to use this page</summary><div><strong>{pageTips[view].title}</strong><p>{pageTips[view].detail}</p><button type="button" onClick={()=>setView(view==='cohorts'?'add':view==='workspace'?'ccdi':'cohorts')}>{pageTips[view].action} →</button></div></details>
         {message && <div className="message" role="status">{message}<button type="button" onClick={() => setMessage('')}>×</button></div>}
 
         {view === 'ccdi' && <CcdiReadiness />}
+        {view === 'overview' && <DataOverview/>}
+        {(view === 'explorer'||view==='compare'||view==='assistant') && <DiscoveryStudio section={view==='explorer'?'explore':view} onImported={()=>refresh().catch(e=>setMessage(String(e)))}/>}
         {view === 'cohorts' && <>
           <section className="intro"><div><p className="eyebrow">Cohort-centered workflow</p><h1>Prepare each cohort from raw files to analysis-ready exports.</h1><p>Each cohort now has its own Files → Inspect → Harmonize → Edit → Integrate → Explore → Export workspace. Cross-cohort merging is intentionally separate.</p></div><button className="primary" type="button" onClick={() => { setProjectName(''); setView('add') }}>Add cohort data</button></section>
           <section className="stats"><article><span>Source cohorts</span><strong>{sourceCohorts.length}</strong></article><article><span>Cross-cohort views</span><strong>{cohorts.filter((c) => c.kind === 'merged').length}</strong></article><article><span>Registered files</span><strong>{datasets.length}</strong></article><article><span>Storage</span><strong>{formatBytes(datasets.reduce((sum, item) => sum + item.size_bytes, 0))}</strong></article></section>

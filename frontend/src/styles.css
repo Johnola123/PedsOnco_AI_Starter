@@ -132,3 +132,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .asset-actions .asset-delete:disabled { opacity:.55; cursor:not-allowed; }
 .confirm-box:has(.confirm-description) { max-height:min(85vh,760px); overflow:auto; width:min(600px,100%); }
 .confirm-box .confirm-description { white-space:pre-line; overflow-wrap:anywhere; font-size:14px; }
+
+/* Final usability pass: group navigation and keep guidance available on demand. */
+.nav-group{margin-bottom:20px}.nav-group-label{display:block;margin:0 11px 7px;font-size:10px;letter-spacing:.11em;font-weight:850;color:#8594aa}.nav button{transition:background .15s ease;color:#475a75}.nav button:focus-visible,.page-help summary:focus-visible{outline:3px solid #79a7f2;outline-offset:2px}.page-help{padding:9px 14px;margin-bottom:19px;background:#f0f5fc;border:1px solid #dde7f3;border-radius:11px;color:#4a6689;font-size:12px}.page-help summary{cursor:pointer;font-weight:750;list-style-position:inside}.page-help>div{padding:12px 4px 6px}.page-help strong{color:#243b5e}.page-help p{margin:6px 0}.page-help button{background:white;border:1px solid #d8e3f2;color:#2152a7;padding:7px 12px;border-radius:8px;font-weight:750}
